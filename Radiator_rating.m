@@ -7,33 +7,36 @@ clearvars; format shortG
 % Modify these
 
 % Radiator Specs
-radiator_L = 0.605; % [m] 
-radiator_W = 0.058; % [m] 
-radiator_H = 0.145; % [m] 
-tubes_N = 17; 
-tube_H = 0.0015; % [m] 
-fin_spacing = 25.4/18000; % [m]   % if the fins are /\/\/\/\
+radiator_L = 0.285; % [m] % Old IC radiator specs (it's the one that says EV Testing on it)
+radiator_W = 0.050; % [m] 
+radiator_H = 0.205; % [m] 
+tubes_N = 22; 
+tube_H = 0.0018; % [m] 
+fin_spacing = 25.4/9000; % [m]   % if the fins are /\/\/\/\
 wall_thickness = 1e-4; % [m]   /\ = 1 fin spacing
 
 
 % Flow Rates
-water_flowrate = 5.5; % [L/min]
-air_flowrate = .1; % [m^3/s]
-water_temp = 32; % [degC]
-air_temp = 22; % [degC]
+water_flowrate = 700/60; % [L/min]
+air_flowrate = 1; % [m^3/s]
+water_temp = 100; % [degC]
+air_temp = 20; % [degC]
 
 %% DO NOT EDIT ANYTHING BELOW HERE %% 
+
+% Abandon hope ye who enter here %
 
 % Derived specs
 tube_H_internal = tube_H - 2*wall_thickness; % [m] 
 tube_W_internal = radiator_W - 2*wall_thickness; % [m] 
-gap_H = (radiator_H - tubes_N * tube_H) / (tubes_N); % [m] Fin height 
+gap_H = (radiator_H - tubes_N * tube_H) / (tubes_N); % [m] Gap between adjacent fins
 fins_N = tubes_N * radiator_L / fin_spacing; 
 flow_speed = (water_flowrate/60000)/(tube_W_internal*tube_H_internal*tubes_N); 
 air_speed = ((air_flowrate) / (radiator_L * radiator_H)) ; 
 
-A_c = (2*fin_spacing + 4*((fin_spacing/2)^2 + gap_H^2)^.5)*radiator_W  * fins_N; 
-A_h = 2 * (tube_H_internal + tube_W_internal) * fin_spacing  * fins_N; 
+% The surface area associated with one fin spacing
+A_c = (2*fin_spacing + 4*((fin_spacing/2)^2 + gap_H^2)^.5)*radiator_W  * fins_N; % Air side
+A_h = 2 * (tube_H_internal + tube_W_internal) * fin_spacing  * fins_N; % Water side
 
 % Uses data from Compact Heat Exchangers Third Edition, Kays and London
 % (and a lot of linear interpolation)
@@ -42,12 +45,12 @@ A_h = 2 * (tube_H_internal + tube_W_internal) * fin_spacing  * fins_N;
 c_pc = interp1([0, 10, 20, 30, 40], [1004, 1004, 1004, 1005, 1005], air_temp, "linear", "extrap");
 u_c = interp1([0, 10, 20, 30, 40], [17.2e-6, 17.69e-6, 18.17e-6, 18.64e-6, 19.11e-6], air_temp, "linear", "extrap"); 
 Pr_c = interp1([0, 10, 20, 30, 40], [.717, .714, .712, .710, .709], air_temp, "linear", "extrap");
-r_hc = 6.475e-4; 
+r_hc = 6.475e-4; % TODO would like to make this dynamic, but struggling to get the equation right
 rho_c = interp1([0, 10, 20, 30, 40], [1.293, 1.2473, 1.2047, 1.165, 1.1277], air_temp, "linear", "extrap");
 Re_c = (rho_c * air_speed * 4 * r_hc)/u_c;
 StPr_c = interp1([10000, 8000, 6000, 5000, 4000, 3000, 25000, 2000, 1500, 1200, 1000, 800, 600, 500], [.00310, .00326, .00352, .00367, .00389, .00417, .00435, .00456, .00495, .00538, .00585, .00663, .00791, .00898], Re_c, "linear", "extrap");
 
-h_c = (c_pc * u_c * StPr_c * Re_c)/((Pr_c^(2/3)) * 4 * r_hc); 
+h_c = (c_pc * u_c * StPr_c * Re_c)/((Pr_c^(2/3)) * 4 * r_hc); % Equation [1-1]
 
 
 % Water side - Surface FT-1
@@ -59,19 +62,19 @@ rho_h = interp1([0.01, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 140], [999.8, 99
 Re_h = (rho_h * flow_speed * 4 * r_hh)/(u_h);
 StPr_h = interp1([10000, 8000, 6000, 5000, 4000, 3000, 2500, 2000, 1500, 1200, 1000, 800, 600, 500], [.00292, .00298, .00305, .00310, .00317, .00291, .00272, .00310, .00381, .00453, .00522, .00621, .00780, .00900], water_temp, "linear", "extrap");
 
-h_h = (c_ph * u_h * StPr_h * Re_h)/((Pr_h^(2/3)) * 4 * r_hh); 
+h_h = (c_ph * u_h * StPr_h * Re_h)/((Pr_h^(2/3)) * 4 * r_hh); % Equation [1-1]
 
 % Fin efficiency
-m = ((2 * h_c)/(240 * wall_thickness))^.5;
-l = ((fin_spacing/2)^2 + gap_H^2)^.5 / 2;
-n_f = tanh(m*l)/(m*l);
-n_c = 1 - (4*((fin_spacing/2)^2 + gap_H^2)^.5/(tube_H * fin_spacing + 2*fin_spacing + 4*((fin_spacing/2)^2 + gap_H^2)^.5)) * (1-n_f);
-% Overall heat transfer coefficients
-U_h = 1/((1/h_h) + (1/((A_c/A_h)*h_c*n_c))); 
-U_c = 1/(1/(h_c*n_c) + 1/((A_h/A_c)*h_h)); 
+m = ((2 * h_c)/(240 * wall_thickness))^.5; % Equation [2-5]
+l = ((fin_spacing/2)^2 + gap_H^2)^.5 / 2; % Fin length
+n_f = tanh(m*l)/(m*l); % Equation [2-4]
+n_c = 1 - (4*((fin_spacing/2)^2 + gap_H^2)^.5/(tube_H * fin_spacing + 2*fin_spacing + 4*((fin_spacing/2)^2 + gap_H^2)^.5)) * (1-n_f); % Equation [2-3]
+% Overall heat transfer coefficients, Equation [2-2] 
+U_h = 1/((1/h_h) + (1/((A_c/A_h)*h_c*n_c))); % Water side
+U_c = 1/(1/(h_c*n_c) + 1/((A_h/A_c)*h_h)); % Air side
 
 % E-NTU Method
-UA = U_c * A_c; 
+UA = U_c * A_c; % U_c * A_c == U_h * A_h
 c_max = max((water_flowrate/60000) * rho_h * c_ph, air_flowrate * rho_c * c_pc); 
 c_min = min((water_flowrate/60000) * rho_h * c_ph, air_flowrate * rho_c * c_pc); 
 
