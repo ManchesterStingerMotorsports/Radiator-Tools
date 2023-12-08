@@ -101,5 +101,6 @@ effectiveness = interp2([0, 0.25, 0.5, 0.75, 1], ... % Crossflow heat exchanger,
     .997, .974, .924, .853, .772; ...
     .999, .983, .940, .871, .789], c_r, NTU, 'spline');
 
+% Outputs
 disp(['U_c: ' num2str(U_c)]) % U_c should be between 25 and 50 (ish)
 disp(['Heat dissipation: ' num2str(round(effectiveness * c_min * (water_temp - air_temp))) 'W'])
